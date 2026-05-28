@@ -53,3 +53,11 @@
 - Anti-faux déclenchements: compteurs ON/OFF, cooldown inter-événements, et gestion des séries de mesures invalides.
 - Robustesse terrain: suivi lent de la distance de référence (drift de fond) et recalibration automatique à vide après période d'inactivité.
 - Aucun serveur Web dans cette version: firmware orienté détection pure et stabilité capteurs.
+
+
+## Version V6 (V5 + télémétrie série PC)
+- Nouvelle version `4capteurs_V6.ino` basée sur la V5, sans interface Web, avec priorité à la stabilité et à l'observation depuis un PC.
+- Envoi automatique d'une trame série `DATA` toutes les 100 ms avec, pour chaque capteur: état OK, distance brute, distance filtrée, référence vide, chute, détection active et nombre de lectures invalides.
+- Envoi immédiat d'une trame `BALLON` dès qu'un ballon est détecté, avec horodatage `millis()`, capteur concerné et distance en millimètres.
+- Format prévu pour être lu dans le moniteur série Arduino ou par un script PC: `DATA,ms=...,C0_raw=...,C0_stable=...,C0_vide=...,C0_chute=...,C0_det=...,ballon=...`.
+- La recalibration automatique bloquante de la V5 n'est pas reprise dans la V6: la référence vide est maintenue par suivi lent pour éviter de bloquer la boucle de détection pendant plusieurs secondes.
