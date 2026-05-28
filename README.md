@@ -45,3 +45,11 @@
 - Réduction des allocations dynamiques dans la boucle web: JSON de statut généré via buffer fixe (`snprintf`) au lieu de concaténations `String`.
 - Page HTML servie depuis la flash (`PROGMEM` + `send_P`) pour limiter la fragmentation mémoire RAM.
 - Rafraîchissement UI ralenti à 400 ms pour réduire la pression réseau/CPU.
+
+
+## Version V5 (stabilité renforcée, base V1)
+- Nouvelle base `4capteurs_V5.ino` reconstruite depuis la logique V1 avec priorité à la stabilité runtime.
+- Lecture stable: filtre **médiane glissante (5)** + **EMA** pour réduire bruit et pics sans perdre trop de réactivité.
+- Anti-faux déclenchements: compteurs ON/OFF, cooldown inter-événements, et gestion des séries de mesures invalides.
+- Robustesse terrain: suivi lent de la distance de référence (drift de fond) et recalibration automatique à vide après période d'inactivité.
+- Aucun serveur Web dans cette version: firmware orienté détection pure et stabilité capteurs.
