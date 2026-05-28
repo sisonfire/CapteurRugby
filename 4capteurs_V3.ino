@@ -16,20 +16,20 @@ const char *WIFI_SSID = "CapteurRugby";
 const char *WIFI_PASS = "ChangeMoi123";
 
 // Point d'accès local direct (connexion téléphone/PC -> ESP32)
-const char *AP_SSID = "CapteurRugby-ESP32";
-const char *AP_PaSS = "Rugby1234"; // min 8 caractères
+const char *AP_SSID = "CapteurRugby-ESP32-V3";
+const char *AP_PASS = "Rugby1234"; // min 8 caractères
 
-// ===== Réglages globaux détection =====
+// ===== Réglages globaux détection (V3) =====
 const int DISTANCE_INVALID = -1;
 const int MAX_SENSOR_MM = 4000;
-const int SEUIL_CHUTE_MM = 420;      // chute mini entre distance à vide et distance lue
-const int CONFIRMATION = 2;          // nb de lectures consécutives pour valider
-const int LIBERATION = 1;            // nb de lectures sans détection pour relâcher
-const uint32_t DETECTION_COOLDOWN_MS = 220; // évite les doubles triggers
+const int SEUIL_CHUTE_MM = 380;      // chute mini entre distance à vide et distance lue
+const int CONFIRMATION = 2;          // conserver 2 pour garder la réactivité          // nb de lectures consécutives pour valider
+const int LIBERATION = 2;            // V3: évite les oscillations trop rapides            // nb de lectures sans détection pour relâcher
+const uint32_t DETECTION_COOLDOWN_MS = 180; // évite les doubles triggers
 
 // ===== Réglages mesure =====
-const int MEDIAN_WINDOW = 5;
-const float EMA_ALPHA = 0.42f;       // compromis stabilité / réactivité
+const int MEDIAN_WINDOW = 3;
+const float EMA_ALPHA = 0.55f;       // compromis stabilité / réactivité
 
 struct SensorConfig {
   int minMM;
@@ -179,11 +179,11 @@ String toJsonStatus() {
 void handleRoot() {
   String html = R"HTML(
 <!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>Capteurs Rugby V2</title>
+<title>Capteurs Rugby V3</title>
 <style>body{font-family:Arial;margin:20px;background:#0c1222;color:#fff}table{border-collapse:collapse;width:100%;max-width:920px}th,td{border:1px solid #2f3d66;padding:8px;text-align:center}input{width:90px}button{padding:8px 14px;margin:6px}.ok{color:#7CFC86}.ko{color:#ff7a7a}</style></head>
-<body><h2>Capteurs Rugby V2</h2><div id='etat'>Chargement...</div>
+<body><h2>Capteurs Rugby V3</h2><div id='etat'>Chargement...</div>
 <table><thead><tr><th>Capteur</th><th>OK</th><th>Raw</th><th>Filtré</th><th>Vide</th><th>Chute</th><th>Detect</th><th>Min(mm)</th><th>Max(mm)</th></tr></thead><tbody id='tb'></tbody></table>
-<button onclick='save()'>Sauvegarder</button><span id='msg'></span>
+<button onclick='save()'>Sauvegarder</button><button onclick='recal()'>Recalibrer vide</button><span id='msg'></span>
 <script>
 async function refresh(){
  const r=await fetch('/api/status');const j=await r.json();
@@ -199,6 +199,11 @@ async function save(){
  for(let i=0;i<4;i++){payload.capteurs.push({id:i,min:parseInt(document.getElementById(`min_${i}`).value),max:parseInt(document.getElementById(`max_${i}`).value)});}
  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  document.getElementById('msg').innerText=r.ok?' ✅ sauvegardé':' ❌ erreur';
+ setTimeout(()=>document.getElementById('msg').innerText='',2000);
+}
+async function recal(){
+ const r=await fetch('/api/recalibrate',{method:'POST'});
+ document.getElementById('msg').innerText=r.ok?' ✅ recalibré':' ❌ erreur recal';
  setTimeout(()=>document.getElementById('msg').innerText='',2000);
 }
 setInterval(refresh,250);refresh();
@@ -235,6 +240,7 @@ void handleConfigPost() {
 }
 
 void calibrerVide() {
+  // V3: calibration rapide pour démarrage plus court
   for (int i = 0; i < NB_CAPTEURS; i++) {
     if (!rt[i].ok) continue;
 
@@ -250,6 +256,12 @@ void calibrerVide() {
     }
     rt[i].distanceVide = (nb > 0) ? (somme / nb) : 2000;
   }
+}
+
+
+void handleRecalibrate() {
+  calibrerVide();
+  server.send(200, "text/plain", "recalibrated");
 }
 
 void setupWeb() {
@@ -268,10 +280,6 @@ void setupWeb() {
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("Connexion WiFi local");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-  Serial.print("Connexion WiFi");
   int tries = 0;
   while (WiFi.status() != WL_CONNECTED && tries < 40) {
     delay(250);
@@ -285,15 +293,12 @@ void setupWeb() {
     Serial.println(WiFi.localIP());
   } else {
     Serial.println("WiFi local non connecté, AP direct toujours disponible");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("WiFi non connecté, mode local uniquement");
   }
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/config", HTTP_POST, handleConfigPost);
+  server.on("/api/recalibrate", HTTP_POST, handleRecalibrate);
   server.begin();
 }
 
