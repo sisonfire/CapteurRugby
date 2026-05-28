@@ -4,6 +4,9 @@
 - `4capteurs_V1.ino` : version initiale.
 - `4capteurs_V2.ino` : version améliorée pour lecture plus stable + interface Web de supervision/réglage.
 - `4capteurs_V3.ino` : version optimisée terrain (AP+STA confirmé, recalibration à la demande, détection plus réactive).
+- `4capteurs_V5.ino` : version stabilité pure, sans interface Web.
+- `4capteurs_V6.ino` : version stabilité + télémétrie série PC.
+- `4capteurs_V7.ino` : version plus légère et plus rapide, avec télémétrie série compacte.
 
 ## V2 - points principaux
 - Filtrage des distances par **médiane glissante** puis **EMA** (plus stable, mais réactif pour un ballon rapide).
@@ -61,3 +64,11 @@
 - Envoi immédiat d'une trame `BALLON` dès qu'un ballon est détecté, avec horodatage `millis()`, capteur concerné et distance en millimètres.
 - Format prévu pour être lu dans le moniteur série Arduino ou par un script PC: `DATA,ms=...,C0_raw=...,C0_stable=...,C0_vide=...,C0_chute=...,C0_det=...,ballon=...`.
 - La recalibration automatique bloquante de la V5 n'est pas reprise dans la V6: la référence vide est maintenue par suivi lent pour éviter de bloquer la boucle de détection pendant plusieurs secondes.
+
+
+## Version V7 (plus légère et plus rapide)
+- Nouvelle version `4capteurs_V7.ino` dérivée de la V6 mais optimisée pour la rapidité: pas de serveur Web, pas de `String`, pas de tri médiane, pas de calcul flottant dans la boucle.
+- Lecture capteurs accélérée avec I2C à 400 kHz, mode VL53L1X `Short`, budget de mesure 20 ms, période continue 20 ms et timeout raccourci.
+- Filtrage allégé par EMA entière (`3/4` nouvelle mesure, `1/4` ancienne mesure) et score de détection léger pour garder une protection anti-faux positifs.
+- Télémétrie série compacte: trame `D` toutes les 50 ms et événement `B` immédiat lors d'une détection ballon.
+- Format compact: `D,ms,capteur,ok,raw,filtre,vide,chute,det,invalid,...,ballon` et `B,ms,capteur,distance_mm`.
