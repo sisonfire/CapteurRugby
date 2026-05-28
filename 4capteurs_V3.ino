@@ -18,13 +18,14 @@ const char *WIFI_PASS = "ChangeMoi123";
 // Point d'accès local direct (connexion téléphone/PC -> ESP32)
 const char *AP_SSID = "CapteurRugby-ESP32-V3";
 const char *AP_PASS = "Rugby1234"; // min 8 caractères
+const bool AP_OPEN_FALLBACK = true;  // si WPA2 échoue, AP ouvert de secours
 
 // ===== Réglages globaux détection (V3) =====
 const int DISTANCE_INVALID = -1;
 const int MAX_SENSOR_MM = 4000;
 const int SEUIL_CHUTE_MM = 380;      // chute mini entre distance à vide et distance lue
-const int CONFIRMATION = 2;          // conserver 2 pour garder la réactivité          // nb de lectures consécutives pour valider
-const int LIBERATION = 2;            // V3: évite les oscillations trop rapides            // nb de lectures sans détection pour relâcher
+const int CONFIRMATION = 2;          // nb de lectures consécutives pour valider
+const int LIBERATION = 2;            // nb de lectures sans détection pour relâcher
 const uint32_t DETECTION_COOLDOWN_MS = 180; // évite les doubles triggers
 
 // ===== Réglages mesure =====
@@ -151,33 +152,46 @@ void saveConfig() {
   prefs.end();
 }
 
-String toJsonStatus() {
-  String json = "{";
-  json += "\"ballon\":" + String(ballonEtat ? "true" : "false") + ",";
-  json += "\"capteurActif\":" + String(capteurActif) + ",";
-  json += "\"distanceActive\":" + String(distanceActive) + ",";
-  json += "\"capteurs\":[";
+void buildJsonStatus(char *out, size_t outSize) {
+  int n = snprintf(
+    out, outSize,
+    "{\"ballon\":%s,\"capteurActif\":%d,\"distanceActive\":%d,\"capteurs\":[",
+    ballonEtat ? "true" : "false", capteurActif, distanceActive
+  );
 
-  for (int i = 0; i < NB_CAPTEURS; i++) {
-    if (i) json += ",";
-    json += "{";
-    json += "\"id\":" + String(i) + ",";
-    json += "\"ok\":" + String(rt[i].ok ? "true" : "false") + ",";
-    json += "\"raw\":" + String(rt[i].distanceRaw) + ",";
-    json += "\"filtre\":" + String(rt[i].distanceFiltered) + ",";
-    json += "\"vide\":" + String(rt[i].distanceVide) + ",";
-    json += "\"chute\":" + String(rt[i].chute) + ",";
-    json += "\"detect\":" + String(rt[i].detect ? "true" : "false") + ",";
-    json += "\"min\":" + String(cfg[i].minMM) + ",";
-    json += "\"max\":" + String(cfg[i].maxMM);
-    json += "}";
+  if (n < 0 || (size_t)n >= outSize) {
+    if (outSize > 0) out[outSize - 1] = '\0';
+    return;
   }
-  json += "]}";
-  return json;
+
+  size_t used = (size_t)n;
+  for (int i = 0; i < NB_CAPTEURS; i++) {
+    n = snprintf(
+      out + used, outSize - used,
+      "%s{\"id\":%d,\"ok\":%s,\"raw\":%d,\"filtre\":%d,\"vide\":%d,\"chute\":%d,\"detect\":%s,\"min\":%d,\"max\":%d}",
+      (i ? "," : ""),
+      i,
+      rt[i].ok ? "true" : "false",
+      rt[i].distanceRaw,
+      rt[i].distanceFiltered,
+      rt[i].distanceVide,
+      rt[i].chute,
+      rt[i].detect ? "true" : "false",
+      cfg[i].minMM,
+      cfg[i].maxMM
+    );
+    if (n < 0 || (size_t)n >= (outSize - used)) {
+      out[outSize - 1] = '\0';
+      return;
+    }
+    used += (size_t)n;
+  }
+
+  snprintf(out + used, outSize - used, "]}");
 }
 
 void handleRoot() {
-  String html = R"HTML(
+  static const char HTML_PAGE[] PROGMEM = R"HTML(
 <!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>Capteurs Rugby V3</title>
 <style>body{font-family:Arial;margin:20px;background:#0c1222;color:#fff}table{border-collapse:collapse;width:100%;max-width:920px}th,td{border:1px solid #2f3d66;padding:8px;text-align:center}input{width:90px}button{padding:8px 14px;margin:6px}.ok{color:#7CFC86}.ko{color:#ff7a7a}</style></head>
@@ -206,12 +220,16 @@ async function recal(){
  document.getElementById('msg').innerText=r.ok?' ✅ recalibré':' ❌ erreur recal';
  setTimeout(()=>document.getElementById('msg').innerText='',2000);
 }
-setInterval(refresh,250);refresh();
+setInterval(refresh,400);refresh();
 </script></body></html>)HTML";
-  server.send(200, "text/html", html);
+  server.send_P(200, "text/html", HTML_PAGE);
 }
 
-void handleStatus() { server.send(200, "application/json", toJsonStatus()); }
+void handleStatus() {
+  char json[1024];
+  buildJsonStatus(json, sizeof(json));
+  server.send(200, "application/json", json);
+}
 
 void handleConfigPost() {
   if (!server.hasArg("plain")) {
@@ -268,14 +286,22 @@ void setupWeb() {
   // Mode mixte: connexion au WiFi local ET point d'accès direct ESP32
   WiFi.mode(WIFI_AP_STA);
 
-  bool apOk = WiFi.softAP(AP_SSID, AP_PASS);
+  bool apOk = WiFi.softAP(AP_SSID, AP_PASS, 6, 0, 4);
+  if (!apOk && AP_OPEN_FALLBACK) {
+    Serial.println("AP sécurisé KO, tentative AP ouvert...");
+    apOk = WiFi.softAP(AP_SSID, "", 6, 0, 4);
+  }
+
   if (apOk) {
+    delay(120);
     Serial.print("AP actif: ");
     Serial.print(AP_SSID);
     Serial.print(" | IP AP: ");
     Serial.println(WiFi.softAPIP());
+    Serial.print("AP mode: ");
+    Serial.println((String(AP_PASS).length() >= 8) ? "WPA2 (ouvert si fallback)" : "OUVERT");
   } else {
-    Serial.println("Echec démarrage AP");
+    Serial.println("Echec démarrage AP (même en fallback)");
   }
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -335,6 +361,10 @@ void setup() {
   loadConfig();
   setupCapteurs();
   calibrerVide();
+
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
+
   setupWeb();
 }
 

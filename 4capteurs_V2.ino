@@ -17,7 +17,7 @@ const char *WIFI_PASS = "ChangeMoi123";
 
 // Point d'accès local direct (connexion téléphone/PC -> ESP32)
 const char *AP_SSID = "CapteurRugby-ESP32";
-const char *AP_PaSS = "Rugby1234"; // min 8 caractères
+const char *AP_PASS = "Rugby1234"; // min 8 caractères
 
 // ===== Réglages globaux détection =====
 const int DISTANCE_INVALID = -1;
@@ -268,10 +268,6 @@ void setupWeb() {
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("Connexion WiFi local");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-  Serial.print("Connexion WiFi");
   int tries = 0;
   while (WiFi.status() != WL_CONNECTED && tries < 40) {
     delay(250);
@@ -285,10 +281,6 @@ void setupWeb() {
     Serial.println(WiFi.localIP());
   } else {
     Serial.println("WiFi local non connecté, AP direct toujours disponible");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("WiFi non connecté, mode local uniquement");
   }
 
   server.on("/", HTTP_GET, handleRoot);

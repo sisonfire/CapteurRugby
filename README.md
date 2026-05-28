@@ -32,3 +32,16 @@
 - Ajoute un bouton **Recalibrer vide** dans l'interface web (`POST /api/recalibrate`).
 - Ajuste les paramètres de filtrage/détection pour passage rapide du ballon:
   - `MEDIAN_WINDOW=3`, `EMA_ALPHA=0.55`, `SEUIL_CHUTE_MM=380`, `COOLDOWN=180ms`, `LIBERATION=2`.
+
+
+## Dépannage connexion AP (ESP32 direct)
+- Si le téléphone n'arrive pas à se connecter au SSID `CapteurRugby-ESP32-V3`, vérifier dans le moniteur série que la ligne `AP actif` apparaît.
+- V3 force le canal 6, coupe le mode sleep WiFi et active une puissance radio élevée pour améliorer la stabilité.
+- Si le mode sécurisé WPA2 échoue, la V3 tente automatiquement un AP ouvert de secours (même SSID).
+- Après connexion AP directe, ouvrir `http://192.168.4.1`.
+
+
+## Stabilité V3 (anti-plantage)
+- Réduction des allocations dynamiques dans la boucle web: JSON de statut généré via buffer fixe (`snprintf`) au lieu de concaténations `String`.
+- Page HTML servie depuis la flash (`PROGMEM` + `send_P`) pour limiter la fragmentation mémoire RAM.
+- Rafraîchissement UI ralenti à 400 ms pour réduire la pression réseau/CPU.
