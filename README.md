@@ -7,6 +7,7 @@
 - `4capteurs_V5.ino` : version stabilité pure, sans interface Web.
 - `4capteurs_V6.ino` : version stabilité + télémétrie série PC.
 - `4capteurs_V7.ino` : version plus légère et plus rapide, avec télémétrie série compacte.
+- `4capteurs_V8.ino` : version ultra légère/rapide, sans télémétrie continue, avec Serial uniquement lors d’une détection ballon.
 
 ## V2 - points principaux
 - Filtrage des distances par **médiane glissante** puis **EMA** (plus stable, mais réactif pour un ballon rapide).
@@ -72,3 +73,19 @@
 - Filtrage allégé par EMA entière (`3/4` nouvelle mesure, `1/4` ancienne mesure) et score de détection léger pour garder une protection anti-faux positifs.
 - Télémétrie série compacte: trame `D` toutes les 50 ms et événement `B` immédiat lors d'une détection ballon.
 - Format compact: `D,ms,capteur,ok,raw,filtre,vide,chute,det,invalid,...,ballon` et `B,ms,capteur,distance_mm`.
+
+
+## Erreur compilation Windows / Arduino IDE (`TwoWire` ou `USI_TWI`)
+Si la compilation affiche une erreur du type `TwoWire has not been declared` ou `class USI_TWI has no member named setClock`, la mauvaise carte est généralement sélectionnée dans Arduino IDE.
+- Sélectionner une carte **ESP32** dans `Outils > Type de carte` (par exemple `ESP32 Dev Module`).
+- Ne pas compiler ce code pour une carte ATtiny / USI: la bibliothèque Pololu `VL53L1X` utilisée ici attend le bus I2C Arduino `TwoWire`, alors que `USI_TWI` ne fournit pas les mêmes fonctions.
+- Vérifier que le sketch garde bien `#include <Wire.h>` avant `#include <VL53L1X.h>`.
+- Installer le package de cartes ESP32 Espressif et la bibliothèque Pololu `VL53L1X` depuis le gestionnaire de bibliothèques Arduino.
+
+
+## Version V8 (ultra légère, rapide, Serial seulement sur détection)
+- Nouvelle version `4capteurs_V8.ino` optimisée pour la détection rapide d’un ballon lancé à la main: aucun serveur Web, aucune trame de télémétrie continue, aucun `String`, aucun calcul flottant et aucun tri médiane.
+- Le seul message série en fonctionnement normal est envoyé lors d'une détection: `BALLON,Cx,distance_mm,millis`.
+- Lecture rapide: I2C 400 kHz, mode VL53L1X `Short`, budget de mesure 20 ms, période continue 20 ms et timeout 45 ms.
+- Stabilité conservée avec EMA entière réactive, score de détection/hystérésis, cooldown anti double-détection et suivi lent du vide hors détection.
+- À utiliser en priorité si l’objectif est la vitesse et la stabilité terrain plutôt que l’observation détaillée depuis le PC.
